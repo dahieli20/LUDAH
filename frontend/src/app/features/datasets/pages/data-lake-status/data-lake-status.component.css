@@ -143,11 +143,11 @@
 .metrics-grid span  {
   display: block;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   margin-bottom: 10px;
 }
 .metrics-grid strong  {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
