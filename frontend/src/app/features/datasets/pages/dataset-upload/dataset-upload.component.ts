@@ -48,7 +48,7 @@ export class DatasetUploadComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadRiskThresholdConfig();
-    this.loadGlobalAudit();
+    this.loadGlobalAudit('APERTURA_PANTALLA');
   }
 
   get selectedItem(): FileQueueItem | null {
@@ -215,7 +215,7 @@ if (this.selectedIndex === null && this.fileQueue.length > 0) {
       }
     } finally {
       this.loading = false;
-      this.loadGlobalAudit();
+      this.loadGlobalAudit('FIN_CARGA_ARCHIVOS');
     }
   }
 
@@ -355,7 +355,11 @@ clearQueue(): void {
         item.state = 'DONE';
 
         this.syncQueueState();
-        this.loadGlobalAudit();
+        this.loadGlobalAudit(
+          result.status === 'ACCEPTED'
+            ? 'ACEPTACION_ARCHIVO'
+            : 'RECHAZO_POR_NOMBRE_EXISTENTE'
+        );
         this.selectFirstReviewItem();
       },
       error: () => {
@@ -409,8 +413,8 @@ clearQueue(): void {
     this.router.navigate(['/datasets/lake-status']);
   }
 
-  loadGlobalAudit(): void {
-    this.datasetService.getRawRepositoryAudit().subscribe({
+  loadGlobalAudit(motivo: string = 'MANUAL'): void {
+    this.datasetService.getRawRepositoryAudit(motivo).subscribe({
       next: response => {
         this.globalAudit = response;
       },
@@ -473,7 +477,7 @@ clearQueue(): void {
         this.riskConfigError = '';
         this.showThresholdModal = false;
 
-        this.loadGlobalAudit();
+        this.loadGlobalAudit('CAMBIO_UMBRALES');
       },
       error: () => {
         this.riskConfigError = 'No se pudo guardar la configuración de rangos.';

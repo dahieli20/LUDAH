@@ -55,8 +55,16 @@ public class DataLakeAuditService {
     }
 
     public DataLakeAuditResponse auditDataLake() {
+        return auditDataLake("NO_REGISTRADO");
+    }
+
+    public DataLakeAuditResponse auditDataLake(String motivo) {
         DataLakeAuditResponse response = calculateDataLakeAudit();
-        auditRecordRepository.save(AuditRecord.from("GLOBAL", response));
+
+        auditRecordRepository.save(
+                AuditRecord.from("GLOBAL", response, motivo)
+        );
+
         return response;
     }
 
@@ -118,9 +126,18 @@ public class DataLakeAuditService {
     }
 
     public DataLakeAuditResponse auditRepository(String prefix) {
+        return auditRepository(prefix, "NO_REGISTRADO");
+    }
+
+    public DataLakeAuditResponse auditRepository(String prefix, String motivo) {
         String normalizedPrefix = normalizePrefix(prefix);
-        DataLakeAuditResponse response = calculateRepositoryAudit(normalizedPrefix);
-        auditRecordRepository.save(AuditRecord.from(normalizedPrefix, response));
+        DataLakeAuditResponse response =
+                calculateRepositoryAudit(normalizedPrefix);
+
+        auditRecordRepository.save(
+                AuditRecord.from(normalizedPrefix, response, motivo)
+        );
+
         return response;
     }
 

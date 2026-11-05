@@ -67,24 +67,46 @@ public class AuditRecord {
     protected AuditRecord() {
     }
 
-    public static AuditRecord from(String prefix, DataLakeAuditResponse response) {
+    public static AuditRecord from(
+            String prefix,
+            DataLakeAuditResponse response,
+            String motivo
+    ) {
         AuditRecord record = new AuditRecord();
-        record.auditedPrefix = prefix == null || prefix.isBlank() ? "GLOBAL" : prefix;
+        record.auditedPrefix = prefix == null || prefix.isBlank()
+                ? "GLOBAL"
+                : prefix;
+
         record.totalFiles = response.totalFiles();
         record.rawFiles = response.rawFiles();
         record.reviewFiles = response.reviewFiles();
         record.rejectedFiles = response.rejectedFiles();
         record.ingestionRiskPercentage = response.ingestionRiskPercentage();
         record.qualityRiskPercentage = response.qualityRiskPercentage();
-        record.exactDuplicationRiskPercentage = response.exactDuplicationRiskPercentage();
+        record.exactDuplicationRiskPercentage =
+                response.exactDuplicationRiskPercentage();
         record.redundancyRiskPercentage = response.redundancyRiskPercentage();
         record.dataSwampIndexPercentage = response.dataSwampIndexPercentage();
         record.classification = response.classification();
         record.message = response.message();
         record.cleanMax = response.cleanMax();
         record.frontierMax = response.frontierMax();
+        record.motivo = motivo == null || motivo.isBlank()
+                ? "NO_REGISTRADO"
+                : motivo;
+
         return record;
     }
+
+    public static AuditRecord from(
+            String prefix,
+            DataLakeAuditResponse response
+    ) {
+        return from(prefix, response, "NO_REGISTRADO");
+    }
+
+    @Column(name = "motivo", nullable = false, length = 50)
+    private String motivo;
 
     @PrePersist
     void initializeCreatedAt() {
@@ -92,4 +114,9 @@ public class AuditRecord {
             createdAt = Instant.now();
         }
     }
+
+    public String getMotivo() {
+        return motivo;
+    }
+
 }

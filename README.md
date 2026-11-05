@@ -60,9 +60,9 @@ Estos valores corresponden a `docker/docker-compose.yml` y a la configuración d
 | Backend | http://localhost:8080/api | — | — |
 | Consola de MinIO | http://localhost:9002 | `admin` | `admin123` |
 | API de MinIO | http://localhost:9000 | `admin` | `admin123` |
-| PostgreSQL | `localhost:5433`, base `ludah` | `ludah` | `ludah123` |
+| PostgreSQL | `localhost:5434`, base `ludah` | `ludah` | `ludah123` |
 
-El puerto interno de la consola de MinIO es 9001, publicado en el equipo como **9002**. PostgreSQL usa internamente 5432, publicado como **5433**.
+El puerto interno de la consola de MinIO es 9001, publicado en el equipo como **9002**. PostgreSQL usa internamente 5432, publicado como **5434**.
 
 ### Crear el bucket de MinIO una sola vez
 
@@ -182,7 +182,7 @@ La conexión PostgreSQL permite estas variables de entorno:
 
 | Variable | Valor predeterminado |
 | --- | --- |
-| `DATABASE_URL` | `jdbc:postgresql://localhost:5433/ludah` |
+| `DATABASE_URL` | `jdbc:postgresql://localhost:5434/ludah` |
 | `DATABASE_USERNAME` | `ludah` |
 | `DATABASE_PASSWORD` | `ludah123` |
 
@@ -210,7 +210,7 @@ ss -ltnp 'sport = :8080'
 
 ### El backend no conecta con PostgreSQL
 
-Comprobar que `postgres-ludah` está disponible, que su comprobación de salud pasa y que la URL utiliza el puerto **5433** desde el equipo. Revisar sus registros desde la raíz:
+Comprobar que `postgres-ludah` está disponible, que su comprobación de salud pasa y que la URL utiliza el puerto **5434** desde el equipo. Revisar sus registros desde la raíz:
 
 ```sh
 docker compose -f docker/docker-compose.yml logs --tail 80 postgres

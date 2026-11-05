@@ -85,13 +85,13 @@ export class DatasetService {
     return this.http.get<string[]>(`${environment.apiUrl}/minio/prefixes`);
   }
 
-  getRawRepositoryAudit(): Observable<DataLakeAuditResponse> {
-    return this.auditRepository('raw/');
+  getRawRepositoryAudit(motivo: string = 'NO_REGISTRADO'): Observable<DataLakeAuditResponse> {
+    return this.auditRepository('raw/', motivo);
   }
 
-  auditRepository(prefix: string): Observable<DataLakeAuditResponse> {
+  auditRepository(prefix: string, motivo: string = 'MANUAL'): Observable<DataLakeAuditResponse> {
     return this.http.get<DataLakeAuditResponse>(`${this.apiUrl}/audit/repository`, {
-      params: { prefix, t: Date.now().toString() }
+      params: { prefix, motivo, t: Date.now().toString() }
     });
   }
 
