@@ -28,13 +28,13 @@ Todos los factores se interpretan en escala normalizada de 0 a 1:
 En la interfaz del prototipo esos valores se muestran como porcentajes de 0 a 100.
 Por ejemplo, `Q = 0,20` en la formula equivale a `20%` en la pantalla.
 
-## 2. Version reducida implementada: DSI-v1
+## 2. Version reducida implementada: DSI
 
 Como la primera version del prototipo analiza principalmente archivos CSV y todavia
 no implementa una base formal de metadatos, se utiliza la version reducida del indice:
 
 ```text
-DSI-v1 = 100 x (0,35Q + 0,30D + 0,35R)
+DSI = 100 x (0,35Q + 0,30D + 0,35R)
 ```
 
 Esta es la formula que calcula actualmente la tarjeta principal de la aplicacion.
@@ -44,9 +44,9 @@ La idea intuitiva es:
 - Si los archivos en `raw/` tienen mala calidad, sube `Q`.
 - Si en `raw/` hay duplicados exactos, sube `D`.
 - Si en `raw/` hay archivos muy parecidos entre si, sube `R`.
-- El resultado combinado es el `DSI-v1`.
+- El resultado combinado es el `DSI`.
 
-Importante: el `DSI-v1` mide el estado del Data Lake activo, por eso se calcula sobre
+Importante: el `DSI` mide el estado del Data Lake activo, por eso se calcula sobre
 los datasets almacenados en `raw/`. Los archivos que quedan en `review/` o `rejected/`
 no contaminan directamente el Data Lake activo porque todavia no fueron incorporados.
 
@@ -113,7 +113,7 @@ D = (10 - 8) / 10 = 0,20
 Interpretacion: el 20% del repositorio evaluado presenta riesgo por duplicidad exacta.
 
 En el flujo controlado del prototipo, un duplicado exacto normalmente va a `rejected/`.
-Por eso puede subir el `IRI`, pero no necesariamente sube el `DSI-v1`, salvo que ese
+Por eso puede subir el `IRI`, pero no necesariamente sube el `DSI`, salvo que ese
 duplicado sea aprobado manualmente y termine en `raw/`.
 
 ## 5. R - Redundancy Risk
@@ -210,13 +210,13 @@ Interpretacion:
 La diferencia principal es:
 
 ```text
-DSI-v1 -> mide contaminacion del Data Lake activo, principalmente raw/
+DSI -> mide contaminacion del Data Lake activo, principalmente raw/
 IRI    -> mide riesgo del flujo de archivos que intentan ingresar
 ```
 
 ## 8. Escala de interpretacion
 
-La escala propuesta para interpretar el `DSI` o `DSI-v1` es:
+La escala propuesta para interpretar el `DSI` es:
 
 ```text
 0 - 30    Data Lake saludable
@@ -243,7 +243,7 @@ Cada CSV pasa por este recorrido:
 6. Se compara con datasets existentes en raw/.
 7. Se clasifica como ACCEPTED, REVIEW o REJECTED.
 8. Se almacena en raw/, review/ o rejected/.
-9. Se recalculan DSI-v1 e IRI.
+9. Se recalculan DSI e IRI.
 ```
 
 Zonas del Data Lake simulado:
@@ -258,13 +258,13 @@ Zonas del Data Lake simulado:
 1. `01_clientes_base.csv`
    - Esperado: `ACCEPTED`
    - Motivo: CSV nuevo y con calidad aceptable.
-   - Impacto esperado: entra a `raw/`; el `DSI-v1` deberia mantenerse bajo.
+   - Impacto esperado: entra a `raw/`; el `DSI` deberia mantenerse bajo.
 
 2. `02_clientes_base_duplicado_exacto.csv`
    - Esperado: `REJECTED`
    - Motivo: mismo contenido que `01_clientes_base.csv`.
    - Formula relacionada: `D = (N - H) / N`.
-   - Impacto esperado: sube el `IRI`; no deberia subir directamente el `DSI-v1` porque queda en `rejected/`.
+   - Impacto esperado: sube el `IRI`; no deberia subir directamente el `DSI` porque queda en `rejected/`.
 
 3. `03_clientes_redundante_parcial.csv`
    - Esperado: `REVIEW`
@@ -291,10 +291,10 @@ Zonas del Data Lake simulado:
    - Esperado: `ACCEPTED`
    - Motivo: entra a `raw/`, pero tiene filas duplicadas internas.
    - Formula relacionada: `Fi`, proporcion de filas duplicadas internas dentro de `Qi`.
-   - Impacto esperado: puede subir el factor `Q` del `DSI-v1`.
+   - Impacto esperado: puede subir el factor `Q` del `DSI`.
 
 Notas:
 
 - Para probar duplicidad exacta, primero carga `01_clientes_base.csv` y despues `02_clientes_base_duplicado_exacto.csv`.
 - Para probar redundancia parcial, primero carga `01_clientes_base.csv` y despues `03_clientes_redundante_parcial.csv`.
-- Si apruebas manualmente `03_clientes_redundante_parcial.csv`, pasara a `raw/` y el factor `R` del `DSI-v1` deberia aumentar.
+- Si apruebas manualmente `03_clientes_redundante_parcial.csv`, pasara a `raw/` y el factor `R` del `DSI` deberia aumentar.

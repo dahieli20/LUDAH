@@ -64,7 +64,7 @@ public class HashService {
                     continue;
                 }
 
-                String normalizedLine = line.trim().toLowerCase();
+                String normalizedLine = CsvNormalization.row(line);
 
                 if (!normalizedLine.isBlank()) {
                     rowHashes.add(hashText(normalizedLine));

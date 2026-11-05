@@ -1,6 +1,6 @@
 # Pruebas para contaminar el Data Lake
 
-Estos archivos estan pensados para subir el riesgo del `DSI-v1` durante pruebas.
+Estos archivos estan pensados para subir el riesgo del `DSI` durante pruebas.
 La idea es simular un Data Lake degradado con baja calidad, redundancia parcial y
 duplicidad exacta.
 

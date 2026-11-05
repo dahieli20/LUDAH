@@ -15,6 +15,10 @@ public record DataLakeAuditResponse(
         double globalRiskPercentage,
         String classification,
         String message,
-        List<AuditFactorResponse> factors
+        List<AuditFactorResponse> factors,
+        String auditMode,
+        String auditedPrefix,
+        Double cleanMax,
+        Double frontierMax
 ) {
 }

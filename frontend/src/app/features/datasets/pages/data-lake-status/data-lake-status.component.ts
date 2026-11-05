@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import { finalize, interval, Subscription } from 'rxjs';
 import { Router } from '@angular/router';
 
 import {
@@ -13,10 +14,18 @@ import {
   templateUrl: './data-lake-status.component.html',
   styleUrls: ['./data-lake-status.component.css']
 })
-export class DataLakeStatusComponent implements OnInit {
+export class DataLakeStatusComponent implements OnInit, OnDestroy {
   globalAudit: DataLakeAuditResponse | null = null;
   loading = false;
   errorMessage = '';
+  selectedMode: 'GLOBAL' | 'REPOSITORY' = 'GLOBAL';
+  repositoryPrefix = '';
+  availablePrefixes: string[] = [];
+  prefixesLoading = false;
+  prefixesError = '';
+  private prefixRefresh?: Subscription;
+  private prefixRequest?: Subscription;
+  private refreshingPrefixes = false;
 
   constructor(
     private datasetService: DatasetService,
@@ -27,20 +36,80 @@ export class DataLakeStatusComponent implements OnInit {
     this.loadGlobalAudit();
   }
 
+  ngOnDestroy(): void {
+    this.prefixRefresh?.unsubscribe();
+    this.prefixRequest?.unsubscribe();
+  }
+
+  onAuditModeChange(mode: 'GLOBAL' | 'REPOSITORY'): void {
+    this.selectedMode = mode;
+    this.prefixRefresh?.unsubscribe();
+    if (mode === 'REPOSITORY') {
+      this.loadRepositoryPrefixes();
+      this.prefixRefresh = interval(15000).subscribe(() => {
+        if (typeof document === 'undefined' || !document.hidden) this.loadRepositoryPrefixes();
+      });
+    } else {
+      this.prefixRequest?.unsubscribe();
+    }
+  }
+
+  @HostListener('window:focus')
+  onWindowFocus(): void {
+    if (this.selectedMode === 'REPOSITORY') this.loadRepositoryPrefixes();
+  }
+
+  loadRepositoryPrefixes(): void {
+    if (this.refreshingPrefixes || this.loading) return;
+    this.refreshingPrefixes = true;
+    // Las actualizaciones en segundo plano conservan el selector disponible.
+    this.prefixesLoading = this.availablePrefixes.length === 0;
+    this.prefixesError = '';
+    this.prefixRequest = this.datasetService.getRepositoryPrefixes().pipe(
+      finalize(() => {
+        this.prefixesLoading = false;
+        this.refreshingPrefixes = false;
+      })
+    ).subscribe({
+      next: prefixes => {
+        this.availablePrefixes = prefixes;
+        if (!prefixes.includes(this.repositoryPrefix)) {
+          this.repositoryPrefix = prefixes.includes('raw/') ? 'raw/' : (prefixes[0] ?? '');
+        }
+      },
+      error: () => {
+        this.prefixesError = 'No se pudieron consultar las rutas de MinIO. Se volverá a intentar automáticamente.';
+      }
+    });
+  }
+
   loadGlobalAudit(): void {
+    if (this.loading || (this.selectedMode === 'REPOSITORY' && this.prefixesLoading)) return;
+    const prefix = this.repositoryPrefix.trim();
+    if (this.selectedMode === 'REPOSITORY' && (!prefix || prefix === '/')) {
+      this.errorMessage = 'Seleccioná una ruta de MinIO para ejecutar la auditoría.';
+      return;
+    }
     this.loading = true;
     this.errorMessage = '';
-
-    this.datasetService.getGlobalAudit().subscribe({
+    this.globalAudit = null;
+    const request = this.selectedMode === 'GLOBAL'
+      ? this.datasetService.getGlobalAudit()
+      : this.datasetService.auditRepository(prefix);
+    request.subscribe({
       next: response => {
         this.globalAudit = response;
         this.loading = false;
       },
       error: () => {
         this.loading = false;
-        this.errorMessage = 'No se pudo obtener el estado global del Data Lake.';
+        this.errorMessage = 'No se pudo auditar el ámbito seleccionado.';
       }
     });
+  }
+
+  get isRepositoryAudit(): boolean {
+    return this.globalAudit?.auditMode === 'REPOSITORY';
   }
 
   goBack(): void {
@@ -68,10 +137,10 @@ export class DataLakeStatusComponent implements OnInit {
     switch (classification) {
       case 'DATA_LAKE_SALUDABLE':
       case 'DATA_LAKE_LIMPIO':
-        return 'Bajo nivel de contaminación en la zona activa del Data Lake.';
+        return 'Bajo nivel de riesgo medido en el conjunto auditado.';
       case 'ZONA_FRONTERA':
       case 'FRONTERA':
-        return 'El Data Lake presenta señales iniciales de degradación.';
+        return 'El conjunto auditado presenta señales de degradación.';
       case 'DATA_SWAMP':
         return 'Alto riesgo de pérdida de utilidad, confiabilidad y reutilización.';
       case 'SIN_DATOS':
@@ -133,15 +202,15 @@ export class DataLakeStatusComponent implements OnInit {
 
   getFactorFriendlyDescription(factor: AuditFactorResponse): string {
     if (factor.name.startsWith('Q')) {
-      return 'Mira si los CSV aceptados tienen celdas vacías, filas repetidas dentro del mismo archivo o columnas duplicadas.';
+      return 'Mira si los CSV auditados tienen celdas vacías, filas repetidas dentro del mismo archivo o columnas duplicadas.';
     }
 
     if (factor.name.startsWith('D')) {
-      return 'Mira si en raw/ hay archivos exactamente iguales, aunque tengan nombres distintos.';
+      return 'Identifica archivos exactamente iguales en el conjunto auditado, aunque tengan nombres distintos.';
     }
 
     if (factor.name.startsWith('R')) {
-      return 'Mira si en raw/ hay datasets que no son idénticos, pero comparten muchas filas.';
+      return 'Identifica datasets del conjunto auditado que comparten filas sin ser idénticos.';
     }
 
     return factor.description;
@@ -179,11 +248,11 @@ export class DataLakeStatusComponent implements OnInit {
     const level = this.getRiskLevel(factor.value).toLowerCase();
 
     if (factor.name.startsWith('Q')) {
-      return `Nivel ${level}: mide cuántos problemas de calidad aparecen en los CSV aceptados.`;
+      return `Nivel ${level}: mide cuántos problemas de calidad aparecen en los CSV auditados.`;
     }
 
     if (factor.name.startsWith('D')) {
-      return `Nivel ${level}: mide cuánto contenido repetido exacto existe en raw/.`;
+      return `Nivel ${level}: mide cuánto contenido repetido exacto existe en el conjunto auditado.`;
     }
 
     if (factor.name.startsWith('R')) {
@@ -205,7 +274,7 @@ export class DataLakeStatusComponent implements OnInit {
     }
 
     if (factor.name.startsWith('R')) {
-      return `El modelo le da ${weight}% de importancia porque datasets muy parecidos reducen la utilidad del lago.`;
+      return `El modelo le da ${weight}% de importancia porque datasets muy parecidos reducen la utilidad del Data Lake.`;
     }
 
     return `El modelo le da ${weight}% de importancia dentro del índice final.`;
@@ -221,7 +290,7 @@ export class DataLakeStatusComponent implements OnInit {
     }
 
     if (factor.name.startsWith('D')) {
-      return 'D = (N - H) / N';
+      return 'D = 100 × (N - H) / N';
     }
 
     if (factor.name.startsWith('R')) {
@@ -249,6 +318,6 @@ export class DataLakeStatusComponent implements OnInit {
     return '';
   }
 
-  return message.replace(/(\d+)\.(\d+)%/g, '$1,$2%');
+  return message.replace(/DSI-v1/gi, 'DSI').replace(/(\d+)\.(\d+)%/g, '$1,$2%');
 }
 }

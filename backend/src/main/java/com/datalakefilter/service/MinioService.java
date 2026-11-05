@@ -17,6 +17,8 @@ import io.minio.messages.Item;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 @Service
 public class MinioService {
@@ -84,6 +86,25 @@ public class MinioService {
             return files;
         } catch (Exception e) {
             throw new RuntimeException("Error al listar archivos en MinIO", e);
+        }
+    }
+
+    /** Prefijos virtuales de MinIO, incluidos los padres de carpetas anidadas. */
+    public List<String> listPrefixes() {
+        Set<String> prefixes = new TreeSet<>();
+        try {
+            Iterable<Result<Item>> results = minioClient.listObjects(
+                    ListObjectsArgs.builder().bucket(bucketName).recursive(true).build());
+            for (Result<Item> result : results) {
+                String objectName = result.get().objectName();
+                for (int index = objectName.indexOf('/'); index >= 0;
+                     index = objectName.indexOf('/', index + 1)) {
+                    if (index > 0) prefixes.add(objectName.substring(0, index + 1));
+                }
+            }
+            return new ArrayList<>(prefixes);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al consultar las rutas disponibles en MinIO", e);
         }
     }
 

@@ -1,1 +1,13 @@
 docker/minio-data/
+
+# Datasets CSV de pruebas
+/datasets-prueba/**/*.csv
+
+# Documentos PDF
+*.pdf
+
+# Documentación de pruebas, análisis y ajustes
+/datasets-prueba/**/*.md
+/ANALISIS_TESIS_LUDAH.md
+/AJUSTES_IMPLEMENTADOS_LUDAH.md
+/GUIA_AJUSTES_LUDAH_TESIS.md

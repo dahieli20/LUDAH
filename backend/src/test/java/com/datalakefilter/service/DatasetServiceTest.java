@@ -77,7 +77,7 @@ class DatasetServiceTest {
         assertEquals(100.0, response.partialMatchPercentage());
         assertEquals(rawFile, response.matchedWith());
         assertEquals(
-                "El archivo comparte el 100% de sus filas únicas con un dataset existente: raw/alumnos_filas_duplicadas - copia.csv. Esto indica que podría tratarse de una copia parcial, una versión reducida o un subconjunto de datos ya almacenado. Se requiere revisión antes de incorporarlo al Data Lake.",
+                "Coeficiente de solapamiento: 100% respecto del conjunto con menos filas únicas. Dataset comparado: raw/alumnos_filas_duplicadas - copia.csv. Esto indica inclusión completa del conjunto menor, sin implicar duplicidad exacta. Podría tratarse de una copia parcial, una versión reducida o un subconjunto de datos ya almacenado. Se requiere revisión antes de incorporarlo al Data Lake.",
                 response.message()
                 );
         }

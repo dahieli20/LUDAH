@@ -3,12 +3,12 @@
     <div class="brand">
       <div>
         <h1>Estado del Data Lake</h1>
-        <p>Indicadores de riesgo basados en el modelo Data Swamp Index.</p>
+        <p>Una lectura del contenido de tu Data Lake, más allá del ingreso.</p>
       </div>
     </div>
 
     <div class="header-actions">
-      <button type="button" class="secondary-button" (click)="loadGlobalAudit()">
+      <button type="button" class="secondary-button" (click)="loadGlobalAudit()" [disabled]="loading">
         Actualizar
       </button>
 
@@ -19,20 +19,33 @@
   </header>
 
   <main class="dashboard">
+    <div class="page-intro">
+      <div><span class="step-label">02 / DIAGNÓSTICO</span><h2>Conocé el estado de tus datos.</h2><p>Evaluá la calidad y las coincidencias del conjunto que querés explorar.</p></div>
+      <span class="counter-pill">Modelo DSI</span>
+    </div>
+
     @if (errorMessage) {
-      <p class="error-text">{{ errorMessage }}</p>
+      <p class="error-text" role="alert">{{ errorMessage }}</p>
     }
 
     @if (globalAudit) {
       <section class="audit-hero">
         <div class="audit-copy">
-          <span class="eyebrow">Data Swamp Index</span>
-          <h2>DSI: {{ formatPercentage(globalAudit.dataSwampIndexPercentage) }}%</h2>
-          <p>{{ formatAuditMessage(globalAudit.message) }}</p>
+          <span class="eyebrow">Diagnóstico del conjunto</span>
+          <h2>Data Swamp Index</h2>
+          @if (globalAudit.classification === 'SIN_DATOS') {
+            <p>No hay datasets disponibles en el conjunto seleccionado para calcular el DSI.</p>
+          }
+          <div class="audit-scope">{{ isRepositoryAudit ? 'Repositorio' : 'Flujo controlado' }} <span aria-hidden="true">/</span> <strong>{{ globalAudit.auditedPrefix || '/' }}</strong></div>
+          @if (globalAudit.cleanMax !== null && globalAudit.frontierMax !== null) {
+            <p class="audit-thresholds">Límites utilizados: saludable ≤ {{ formatPercentage(globalAudit.cleanMax) }} · frontera ≤ {{ formatPercentage(globalAudit.frontierMax) }} · Data Swamp por encima de ese límite.</p>
+          } @else {
+            <p class="audit-thresholds">Umbrales originales desconocidos.</p>
+          }
         </div>
 
         <div class="audit-score" [ngClass]="globalAudit.classification.toLowerCase()">
-          <strong>{{ formatPercentage(globalAudit.dataSwampIndexPercentage) }}%</strong>
+          <strong class="dsi-circle" aria-label="Puntuación DSI">{{ formatPercentage(globalAudit.dataSwampIndexPercentage) }}%</strong>
           <span>{{ getAuditClassificationLabel(globalAudit.classification) }}</span>
           <p>{{ getAuditClassificationDescription(globalAudit.classification) }}</p>
         </div>
@@ -40,57 +53,62 @@
     } @else {
       <section class="empty-panel">
         <h2>{{ loading ? 'Calculando estado del Data Lake' : 'Sin datos de auditoría' }}</h2>
-        <p>Cuando existan datasets procesados, este panel mostrará el DSI y el IRI.</p>
+        <p>Cuando existan datasets procesados, este panel mostrará el diagnóstico del conjunto seleccionado.</p>
       </section>
     }
 
     @if (globalAudit) {
       <section class="metrics-grid">
         <div>
-          <span>Total procesados</span>
+          <span>{{ isRepositoryAudit ? 'CSV encontrados' : 'CSV en las tres zonas' }}</span>
           <strong>{{ globalAudit.totalFiles }}</strong>
         </div>
 
+        @if (!isRepositoryAudit) {
         <div>
           <span>Raw activo</span>
           <strong>{{ globalAudit.rawFiles }}</strong>
         </div>
 
         <div>
-          <span>Review</span>
+          <span>En revisión</span>
           <strong>{{ globalAudit.reviewFiles }}</strong>
         </div>
 
         <div>
-          <span>Rejected</span>
+          <span>Rechazados</span>
           <strong>{{ globalAudit.rejectedFiles }}</strong>
         </div>
 
+        }
         <div>
           <span>IRI</span>
-          <strong>{{ formatPercentage(globalAudit.ingestionRiskPercentage) }}%</strong>
+          <strong>{{ isRepositoryAudit ? 'No aplica' : formatPercentage(globalAudit.ingestionRiskPercentage) + '%' }}</strong>
         </div>
       </section>
 
       <section class="plain-summary-grid">
         <article>
-          <span>Estado del Data Lake activo</span>
+          <span>Estado del conjunto auditado</span>
           <strong>{{ getAuditClassificationLabel(globalAudit.classification) }}</strong>
           <p>
-            Este valor mira principalmente lo que ya entró a <strong>raw/</strong>.
-            Si es bajo, el Data Lake activo se mantiene controlado.
+            @if (globalAudit.classification === 'SIN_DATOS') {
+              No hay CSV evaluables para calcular el DSI. El cero técnico no acredita un repositorio saludable.
+            } @else {
+              El diagnóstico corresponde a los CSV de {{ globalAudit.auditedPrefix || '/' }} en esta ejecución.
+            }
           </p>
         </article>
 
         <article>
           <span>Flujo de ingreso</span>
-          <strong>{{ getIriLevel(globalAudit.ingestionRiskPercentage) }}</strong>
-          <p>{{ getIriDescription(globalAudit.ingestionRiskPercentage) }}</p>
+          <strong>{{ isRepositoryAudit ? 'No aplica' : getIriLevel(globalAudit.ingestionRiskPercentage) }}</strong>
+          <p>{{ isRepositoryAudit ? 'Se desconocen los estados originales de aceptación, revisión o rechazo. Esta modalidad no evalúa el riesgo de ingestión.' : getIriDescription(globalAudit.ingestionRiskPercentage) }}</p>
         </article>
 
         @if (getTopFactor(); as topFactor) {
           <article>
-            <span>Principal alerta actual</span>
+            <span>Factor con mayor puntuación</span>
             <strong>{{ getFactorFriendlyName(topFactor) }}</strong>
             <p>
               {{ getFactorShortCode(topFactor) }} está en {{ formatPercentage(topFactor.value) }}%
@@ -100,200 +118,46 @@
         }
       </section>
 
-      <section class="section-band">
-        <div class="section-heading">
-          <h2>Qué está afectando el DSI</h2>
-          <p>
-            Estos tres factores explican por qué sube o baja el riesgo del Data Lake
-            activo. El aporte muestra cuántos puntos suma cada factor al DSI.
-          </p>
-        </div>
-
-        <div class="factor-list">
-          @for (factor of globalAudit.factors; track factor) {
-            <article class="factor-row">
-              <div>
-                <div class="factor-title">
-                  <span>{{ getFactorShortCode(factor) }}</span>
-                  <h3>{{ getFactorFriendlyName(factor) }}</h3>
-                </div>
-
-                <p>{{ getFactorFriendlyDescription(factor) }}</p>
-
-                <details>
-                  <summary>Ver cálculo técnico</summary>
-                  <code>{{ getFactorFormula(factor) }}</code>
-                  <p>{{ factor.description }}</p>
-                </details>
-              </div>
-
-              <div class="factor-values">
-                <div>
-                  <span>Riesgo medido</span>
-                  <strong>{{ formatPercentage(factor.value) }}%</strong>
-                  <p>{{ getFactorMeasuredExplanation(factor) }}</p>
-                </div>
-
-                <div>
-                  <span>Peso en el índice</span>
-                  <strong>{{ factor.weight * 100 | number:'1.0-0' }}%</strong>
-                  <p>{{ getFactorWeightExplanation(factor) }}</p>
-                </div>
-
-                <div>
-                  <span>Aporte al DSI</span>
-                  <strong>{{ formatPercentage(factor.contribution) }} pts</strong>
-                  <p>{{ getFactorContributionExplanation(factor) }}</p>
-                </div>
-              </div>
-            </article>
-          }
-        </div>
-      </section>
-
-      <details class="technical-panel">
-        <summary>Ver fórmulas completas del modelo</summary>
-
-        <section class="formula-grid">
-          <article>
-            <h3>Fórmula general</h3>
-            <code>DSI = 0,35Q + 0,30D + 0,35R</code>
-            <p>
-              Integra calidad, duplicidad exacta y redundancia parcial.
-            </p>
-          </article>
-
-          <article>
-            <h3>Q - Quality Risk</h3>
-            <code>Qi = 0,50Ni + 0,30Fi + 0,20Ci</code>
-            <p>
-              Ni representa nulos, Fi filas duplicadas internas y Ci columnas duplicadas.
-              Si un CSV no tiene filas de datos, Qi = 100.
-            </p>
-          </article>
-
-          <article>
-            <h3>D - Duplication Risk</h3>
-            <code>D = 100 × (N - H) / N</code>
-            <p>
-              N es la cantidad de datasets evaluados y H la cantidad de hashes globales únicos.
-            </p>
-          </article>
-
-          <article>
-            <h3>R - Redundancy Risk</h3>
-            <code>Similitud(i,j) = 100 × filas comunes / min(filas i, filas j)</code>
-            <p>
-              La similitud se transforma en riesgo con los umbrales 65%, 80%, 95% y 100%.
-            </p>
-          </article>
-
-          <article>
-            <h3>IRI - Ingestion Risk Index</h3>
-            <code>IRI = (review × 50 + rejected × 100) / total</code>
-            <p>
-              Mide el riesgo del flujo de ingreso, no la contaminación real de raw/.
-            </p>
-          </article>
-        </section>
-      </details>
-
-      <section class="section-band">
-        <div class="section-heading">
-          <h2>Cómo leer los porcentajes</h2>
-          <p>
-            Usá esta escala como una guía rápida: cuanto más alto el porcentaje,
-            más atención requiere ese punto.
-          </p>
-        </div>
-
-        <div class="index-scale-grid">
-          <article>
-            <h3>0% - 25%</h3>
-            <code>Riesgo bajo</code>
-            <p>
-              El indicador está en una zona esperada. Conviene seguir monitoreando.
-            </p>
-          </article>
-
-          <article>
-            <h3>25,01% - 50%</h3>
-            <code>Riesgo medio</code>
-            <p>
-              Ya hay señales de alerta. Es buen momento para revisar archivos dudosos.
-            </p>
-          </article>
-
-          <article>
-            <h3>50,01% - 100%</h3>
-            <code>Riesgo alto</code>
-            <p>
-              El indicador necesita atención. Puede haber contaminación o un flujo de ingreso muy problemático.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section class="section-band">
-        <div class="section-heading">
-          <h2>Cuándo dos archivos se consideran parecidos</h2>
-          <p>
-            Esta escala alimenta el factor de redundancia. Sirve para detectar datasets
-            que no son iguales, pero repiten mucha información.
-          </p>
-        </div>
-
-        <div class="redundancy-scale">
-          <div>
-            <span>Similitud menor a 65%</span>
-            <strong>Riesgo 0</strong>
-          </div>
-
-          <div>
-            <span>65% - 79%</span>
-            <strong>Riesgo 45</strong>
-          </div>
-
-          <div>
-            <span>80% - 94%</span>
-            <strong>Riesgo 70</strong>
-          </div>
-
-          <div>
-            <span>95% - 99%</span>
-            <strong>Riesgo 90</strong>
-          </div>
-
-          <div>
-            <span>100%</span>
-            <strong>Riesgo 100</strong>
-          </div>
-        </div>
-      </section>
-
-      <section class="scale-band">
-        <h2>Escala predeterminada de interpretación del DSI</h2>
-
-        <div class="scale-grid">
-          <div>
-            <strong>0 - 25</strong>
-            <span>Data Lake saludable</span>
-            <p>Bajo nivel de contaminación.</p>
-          </div>
-
-          <div>
-            <strong>25,01 - 50</strong>
-            <span>Zona frontera</span>
-            <p>El repositorio presenta señales iniciales de degradación.</p>
-          </div>
-
-          <div>
-            <strong>50,01 - 100</strong>
-            <span>Data Swamp</span>
-            <p>Alto riesgo de pérdida de utilidad y confiabilidad.</p>
-          </div>
-        </div>
-      </section>
     }
+
+    <section class="audit-controls" aria-label="Configurar auditoría">
+      <div class="audit-controls-heading"><h2>Alcance de la auditoría</h2><span>Elegí qué conjunto evaluar</span></div>
+      <div class="audit-fields">
+        <div class="audit-field">
+          <label for="audit-mode">Modalidad</label>
+          <select id="audit-mode" [(ngModel)]="selectedMode" (ngModelChange)="onAuditModeChange($event)" [disabled]="loading">
+            <option value="GLOBAL">Flujo controlado · auditoría global</option>
+            <option value="REPOSITORY">Repositorio · por ruta</option>
+          </select>
+        </div>
+        @if (selectedMode === 'REPOSITORY') {
+          <div class="audit-field">
+            <label for="audit-prefix">Ruta o prefijo de MinIO</label>
+            <div class="prefix-selector">
+              <select id="audit-prefix" [(ngModel)]="repositoryPrefix" [disabled]="loading || prefixesLoading || availablePrefixes.length === 0" aria-describedby="audit-help">
+                <option value="" disabled>{{ prefixesLoading ? 'Cargando rutas…' : (availablePrefixes.length ? 'Seleccioná una ruta' : 'Sin rutas disponibles') }}</option>
+                @for (prefix of availablePrefixes; track prefix) {
+                  <option [value]="prefix">{{ prefix }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        }
+        <button type="button" class="primary-button" (click)="loadGlobalAudit()" [disabled]="loading || (selectedMode === 'REPOSITORY' && (prefixesLoading || !repositoryPrefix))">
+          {{ loading ? 'Auditando…' : 'Ejecutar auditoría' }} <span aria-hidden="true">↗</span>
+        </button>
+      </div>
+      @if (selectedMode === 'REPOSITORY' && prefixesError) {
+        <p class="error-text" role="alert">{{ prefixesError }}</p>
+      }
+      @if (selectedMode === 'REPOSITORY' && !prefixesLoading && !prefixesError && availablePrefixes.length === 0) {
+        <p class="audit-help">No se encontraron carpetas en MinIO. Creá una ruta o cargá archivos en una carpeta; aparecerá automáticamente.</p>
+      }
+      @if (selectedMode === 'REPOSITORY') {
+        <p class="audit-help" id="audit-help">Las rutas se actualizan automáticamente. Se incluyen los CSV de la ruta elegida y sus subcarpetas.</p>
+      } @else {
+        <p class="audit-help">El DSI evalúa raw/. El IRI considera la distribución entre raw/, review/ y rejected/.</p>
+      }
+    </section>
   </main>
 </div>

@@ -46,6 +46,10 @@ export interface DataLakeAuditResponse {
   classification: string;
   message: string;
   factors: AuditFactorResponse[];
+  auditMode: 'GLOBAL' | 'REPOSITORY';
+  auditedPrefix: string;
+  cleanMax: number | null;
+  frontierMax: number | null;
 }
 @Injectable({
   providedIn: 'root'
@@ -77,12 +81,18 @@ export class DatasetService {
     );
   }
 
-  getRawRepositoryAudit(): Observable<DataLakeAuditResponse> {
-    const timestamp = new Date().getTime();
+  getRepositoryPrefixes(): Observable<string[]> {
+    return this.http.get<string[]>(`${environment.apiUrl}/minio/prefixes`);
+  }
 
-    return this.http.get<DataLakeAuditResponse>(
-      `${this.apiUrl}/audit/repository?prefix=raw/&t=${timestamp}`
-    );
+  getRawRepositoryAudit(): Observable<DataLakeAuditResponse> {
+    return this.auditRepository('raw/');
+  }
+
+  auditRepository(prefix: string): Observable<DataLakeAuditResponse> {
+    return this.http.get<DataLakeAuditResponse>(`${this.apiUrl}/audit/repository`, {
+      params: { prefix, t: Date.now().toString() }
+    });
   }
 
   getGlobalAudit(): Observable<DataLakeAuditResponse> {

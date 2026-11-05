@@ -55,6 +55,12 @@ public class AuditRecord {
     @Column(columnDefinition = "TEXT")
     private String message;
 
+    @Column(name = "clean_max")
+    private Double cleanMax;
+
+    @Column(name = "frontier_max")
+    private Double frontierMax;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -75,6 +81,8 @@ public class AuditRecord {
         record.dataSwampIndexPercentage = response.dataSwampIndexPercentage();
         record.classification = response.classification();
         record.message = response.message();
+        record.cleanMax = response.cleanMax();
+        record.frontierMax = response.frontierMax();
         return record;
     }
 

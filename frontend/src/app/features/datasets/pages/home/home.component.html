@@ -1,0 +1,68 @@
+<div class="page-shell">
+  <header class="top-header">
+    <div class="brand">
+      <h1>Inicio</h1>
+      <p>Conocé LUDAH y elegí cómo querés trabajar con tus datos.</p>
+    </div>
+  </header>
+
+  <main class="dashboard home-dashboard">
+    <section class="welcome" aria-labelledby="welcome-title">
+      <div class="welcome-content">
+        <span class="eyebrow">Calidad de datos para tu Data Lake</span>
+        <h2 id="welcome-title">Un punto de partida para entender tu Data&nbsp;Lake.</h2>
+        <p>LUDAH ayuda a identificar señales de degradación mediante el análisis de calidad, duplicidad y redundancia de archivos CSV.<br>Podés evaluar los archivos antes de incorporarlos o revisar el contenido que ya está almacenado.</p>
+      </div>
+      <div class="welcome-symbol" aria-hidden="true">
+        <svg viewBox="0 0 120 120" fill="none"><path d="m20 38 40-20 40 20-40 20-40-20Z"/><path d="m20 60 40 20 40-20M20 82l40 20 40-20"/><path class="symbol-detail" d="m45 38 10 7 20-14"/></svg>
+      </div>
+    </section>
+
+    <section aria-labelledby="actions-title">
+      <div class="home-section-heading">
+        <h2 id="actions-title">¿Qué querés hacer?</h2>
+        <p>Elegí una de las dos formas de analizar tus datos.</p>
+      </div>
+      <div class="home-actions">
+        <article class="action-card">
+          <div class="action-topline">
+            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 16V3m-4 4 4-4 4 4M4 14v6h16v-6"/></svg></span>
+            <span class="action-context">Antes de incorporar</span>
+          </div>
+          <h3>Ingresar y analizar archivos</h3>
+          <p>Cargá uno o varios CSV para revisar su calidad y compararlos con los archivos del Data Lake.</p>
+          <ul>
+            <li>Detectá valores nulos y filas o encabezados repetidos.</li>
+            <li>Identificá duplicados exactos y coincidencias entre archivos.</li>
+            <li>Revisá la aceptación, revisión o rechazo de cada carga.</li>
+          </ul>
+          <a class="primary-button" routerLink="/datasets/upload">Ir a ingestión de datos <span aria-hidden="true">→</span></a>
+        </article>
+
+        <article class="action-card">
+          <div class="action-topline">
+            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 20h16M6 16v-5m6 5V4m6 12V8"/></svg></span>
+            <span class="action-context">Sobre datos almacenados</span>
+          </div>
+          <h3>Auditar el repositorio</h3>
+          <p>Consultá el estado del Data Lake o elegí una ruta de MinIO para evaluar sus archivos CSV.</p>
+          <ul>
+            <li>Evaluá calidad, duplicidad exacta y redundancia parcial.</li>
+            <li>Consultá el DSI y la clasificación del conjunto auditado.</li>
+            <li>En la auditoría global, revisá también el IRI del flujo de ingreso.</li>
+          </ul>
+          <a class="primary-button" routerLink="/datasets/lake-status">Ir a auditoría del Data Lake <span aria-hidden="true">→</span></a>
+        </article>
+      </div>
+    </section>
+
+    <section class="home-guide" aria-labelledby="guide-title">
+      <div>
+        <h2 id="guide-title">Dos miradas complementarias</h2>
+        <p>El ingreso de archivos y el contenido almacenado se evalúan por separado.</p>
+      </div>
+      <div class="indicator-note"><span>IRI</span><p>Describe la distribución actual de archivos aceptados, en revisión y rechazados dentro del flujo controlado.</p></div>
+      <div class="indicator-note"><span>DSI</span><p>Resume las señales de degradación detectadas en el conjunto auditado. Su clasificación depende de los umbrales configurados.</p></div>
+    </section>
+  </main>
+</div>

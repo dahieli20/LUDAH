@@ -2,6 +2,8 @@ package com.datalakefilter.service;
 
 import com.datalakefilter.dto.AuditFactorResponse;
 import com.datalakefilter.dto.DataLakeAuditResponse;
+import com.datalakefilter.dto.RiskThresholdConfigResponse;
+import com.datalakefilter.dto.CsvQualityResult;
 import com.datalakefilter.persistence.entity.AuditRecord;
 import com.datalakefilter.persistence.repository.AuditRecordRepository;
 import io.minio.GetObjectArgs;
@@ -12,10 +14,7 @@ import io.minio.messages.Item;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,6 +32,8 @@ public class DataLakeAuditService {
     private static final double REDUNDANCY_WEIGHT = 0.35;
     private final RiskThresholdConfigService riskThresholdConfigService;
 
+    private final CsvQualityService csvQualityService;
+    private final HashService hashService;
     private final MinioClient minioClient;
     private final AuditRecordRepository auditRecordRepository;
 
@@ -42,8 +43,12 @@ public class DataLakeAuditService {
     public DataLakeAuditService(
             MinioClient minioClient,
             RiskThresholdConfigService riskThresholdConfigService,
-            AuditRecordRepository auditRecordRepository
+            AuditRecordRepository auditRecordRepository,
+            CsvQualityService csvQualityService,
+            HashService hashService
     ) {
+        this.csvQualityService = csvQualityService;
+        this.hashService = hashService;
         this.minioClient = minioClient;
         this.riskThresholdConfigService = riskThresholdConfigService;
         this.auditRecordRepository = auditRecordRepository;
@@ -56,6 +61,7 @@ public class DataLakeAuditService {
     }
 
     private DataLakeAuditResponse calculateDataLakeAudit() {
+        RiskThresholdConfigResponse config = riskThresholdConfigService.getConfig();
         List<String> rawFiles = listCsvFiles("raw/");
         List<String> reviewFiles = listCsvFiles("review/");
         List<String> rejectedFiles = listCsvFiles("rejected/");
@@ -73,7 +79,7 @@ public class DataLakeAuditService {
                     reviewCount,
                     rejectedCount,
                     ingestionRisk,
-                    "El Data Lake todavía no contiene archivos para auditar."
+                    "El Data Lake todavía no contiene archivos para auditar.", config, "GLOBAL", "raw/"
             );
         }
 
@@ -84,15 +90,15 @@ public class DataLakeAuditService {
                     reviewCount,
                     rejectedCount,
                     ingestionRisk,
-                    "No hay datasets activos en raw/ para calcular el DSI-v1. El IRI del flujo de ingestión es "
+                    "No hay datasets activos en raw/ para calcular el DSI. El IRI del flujo de ingestión es "
                             + ingestionRisk
-                            + "%."
+                            + "%.", config, "GLOBAL", "raw/"
             );
         }
 
         RepositoryAuditMetrics metrics = calculateRepositoryMetrics(rawFiles);
         double dataSwampIndex = calculateDataSwampIndex(metrics);
-        String classification = classify(dataSwampIndex);
+        String classification = classify(dataSwampIndex, config);
 
         return new DataLakeAuditResponse(
                 totalFiles,
@@ -107,7 +113,7 @@ public class DataLakeAuditService {
                 dataSwampIndex,
                 classification,
                 buildDataLakeMessage(classification, dataSwampIndex, ingestionRisk),
-                buildDsiFactors(metrics)
+                buildDsiFactors(metrics), "GLOBAL", "raw/", config.cleanMax(), config.frontierMax()
         );
     }
 
@@ -119,6 +125,7 @@ public class DataLakeAuditService {
     }
 
     private DataLakeAuditResponse calculateRepositoryAudit(String normalizedPrefix) {
+        RiskThresholdConfigResponse config = riskThresholdConfigService.getConfig();
         List<String> repositoryFiles = listCsvFiles(normalizedPrefix);
         int totalFiles = repositoryFiles.size();
 
@@ -129,13 +136,13 @@ public class DataLakeAuditService {
                     0,
                     0,
                     0,
-                    "No se encontraron archivos CSV para auditar en la ruta indicada."
+                    "No se encontraron archivos CSV para auditar en la ruta indicada.", config, "REPOSITORY", normalizedPrefix
             );
         }
 
         RepositoryAuditMetrics metrics = calculateRepositoryMetrics(repositoryFiles);
         double dataSwampIndex = calculateDataSwampIndex(metrics);
-        String classification = classify(dataSwampIndex);
+        String classification = classify(dataSwampIndex, config);
 
         return new DataLakeAuditResponse(
                 totalFiles,
@@ -150,7 +157,7 @@ public class DataLakeAuditService {
                 dataSwampIndex,
                 classification,
                 buildRepositoryMessage(classification, dataSwampIndex),
-                buildDsiFactors(metrics)
+                buildDsiFactors(metrics), "REPOSITORY", normalizedPrefix, config.cleanMax(), config.frontierMax()
         );
     }
 
@@ -160,7 +167,7 @@ public class DataLakeAuditService {
             int reviewFiles,
             int rejectedFiles,
             double ingestionRisk,
-            String message
+            String message, RiskThresholdConfigResponse config, String mode, String prefix
     ) {
         return new DataLakeAuditResponse(
                 totalFiles,
@@ -175,7 +182,7 @@ public class DataLakeAuditService {
                 0,
                 "SIN_DATOS",
                 message,
-                List.of()
+                List.of(), mode, prefix, config.cleanMax(), config.frontierMax()
         );
     }
 
@@ -270,109 +277,16 @@ public class DataLakeAuditService {
     }
 
     private double auditCsvQualityRisk(String objectName) {
-        try (
-                InputStream inputStream = minioClient.getObject(
-                        GetObjectArgs.builder()
-                                .bucket(bucketName)
-                                .object(objectName)
-                                .build()
-                );
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(inputStream, StandardCharsets.UTF_8)
-                )
-        ) {
-            List<String[]> rows = new ArrayList<>();
-            String line;
-
-            while ((line = reader.readLine()) != null) {
-                rows.add(parseCsvLine(line));
-            }
-
-            if (rows.isEmpty()) {
-                return 100;
-            }
-
-            String[] headers = rows.get(0);
-            List<String[]> dataRows = rows.size() > 1
-                    ? rows.subList(1, rows.size())
-                    : List.of();
-
-            if (dataRows.isEmpty()) {
-                return 100;
-            }
-
-            double nullPercentage = calculateNullPercentage(dataRows, headers.length);
-            double duplicateRowsPercentage = calculateDuplicateRowsPercentage(dataRows);
-            double duplicateColumnRisk = hasDuplicateColumns(headers) ? 100 : 0;
-
-            double qualityRisk = (nullPercentage * 0.50)
-                    + (duplicateRowsPercentage * 0.30)
-                    + (duplicateColumnRisk * 0.20);
-
-            return round(Math.min(qualityRisk, 100));
+        try (InputStream inputStream = minioClient.getObject(
+                GetObjectArgs.builder().bucket(bucketName).object(objectName).build())) {
+            CsvQualityResult quality = csvQualityService.analyze(inputStream);
+            if (!quality.hasDataRows()) return 100;
+            return round(quality.nullPercentage() * 0.50
+                    + quality.duplicateRowsPercentage() * 0.30
+                    + (quality.hasDuplicateColumns() ? 100 : 0) * 0.20);
         } catch (Exception e) {
             throw new RuntimeException("Error al auditar calidad del archivo: " + objectName, e);
         }
-    }
-
-    private String[] parseCsvLine(String line) {
-        return line.split(",", -1);
-    }
-
-    private boolean hasDuplicateColumns(String[] headers) {
-        Set<String> seen = new HashSet<>();
-
-        for (String header : headers) {
-            String normalized = header.trim().toLowerCase();
-
-            if (!seen.add(normalized)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private double calculateNullPercentage(List<String[]> dataRows, int totalColumns) {
-        if (dataRows.isEmpty() || totalColumns == 0) {
-            return 100;
-        }
-
-        int totalCells = 0;
-        int nullCells = 0;
-
-        for (String[] row : dataRows) {
-            for (int i = 0; i < totalColumns; i++) {
-                totalCells++;
-
-                String cell = i < row.length ? row[i] : "";
-
-                if (cell == null || cell.trim().isEmpty()) {
-                    nullCells++;
-                }
-            }
-        }
-
-        return round((nullCells * 100.0) / totalCells);
-    }
-
-    private double calculateDuplicateRowsPercentage(List<String[]> dataRows) {
-        if (dataRows.isEmpty()) {
-            return 0;
-        }
-
-        Set<String> uniqueRows = new HashSet<>();
-        int duplicatedRows = 0;
-
-        for (String[] row : dataRows) {
-            String normalizedRow = String.join("|", row).trim().toLowerCase();
-
-            if (!uniqueRows.add(normalizedRow)) {
-                duplicatedRows++;
-            }
-        }
-
-        return round((duplicatedRows * 100.0) / dataRows.size());
     }
 
     private double calculateExactDuplicationRisk(List<RepositoryFileFingerprint> fingerprints) {
@@ -477,50 +391,12 @@ public class DataLakeAuditService {
     }
 
     private Set<String> readNormalizedDataRows(String objectName) {
-        try (
-                InputStream inputStream = minioClient.getObject(
-                        GetObjectArgs.builder()
-                                .bucket(bucketName)
-                                .object(objectName)
-                                .build()
-                );
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(inputStream, StandardCharsets.UTF_8)
-                )
-        ) {
-            Set<String> rows = new HashSet<>();
-            String line;
-            boolean firstLine = true;
-
-            while ((line = reader.readLine()) != null) {
-                if (firstLine) {
-                    firstLine = false;
-                    continue;
-                }
-
-                String normalized = normalizeCsvLine(line);
-
-                if (!normalized.isBlank()) {
-                    rows.add(hashText(normalized));
-                }
-            }
-
-            return rows;
+        try (InputStream inputStream = minioClient.getObject(
+                GetObjectArgs.builder().bucket(bucketName).object(objectName).build())) {
+            return hashService.calculateRowHashes(inputStream);
         } catch (Exception e) {
-            throw new RuntimeException("Error al leer filas normalizadas del archivo: " + objectName, e);
+            throw new RuntimeException("Error al leer filas del archivo: " + objectName, e);
         }
-    }
-
-    private String normalizeCsvLine(String line) {
-        if (line == null) {
-            return "";
-        }
-
-        return line
-                .replace("\uFEFF", "")
-                .trim()
-                .replaceAll("\\s+", " ")
-                .toLowerCase();
     }
 
     private String calculateSha256(String objectName) {
@@ -547,15 +423,6 @@ public class DataLakeAuditService {
         }
     }
 
-    private String hashText(String text) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(text.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            throw new RuntimeException("Error al calcular hash de fila", e);
-        }
-    }
-
     private double calculateDataSwampIndex(RepositoryAuditMetrics metrics) {
         return round(
                 (metrics.qualityRisk() * QUALITY_WEIGHT)
@@ -578,7 +445,7 @@ public class DataLakeAuditService {
                         metrics.exactDuplicationRisk(),
                         EXACT_DUPLICATION_WEIGHT,
                         round(metrics.exactDuplicationRisk() * EXACT_DUPLICATION_WEIGHT),
-                        "Calcula D = (N - H) / N mediante hash global SHA-256."
+                        "Calcula D = 100 × (N - H) / N mediante hash global SHA-256."
                 ),
                 new AuditFactorResponse(
                         "R - Riesgo por redundancia parcial",
@@ -590,9 +457,9 @@ public class DataLakeAuditService {
         );
     }
 
-    private String classify(double dataSwampIndex) {
-        double cleanMax = riskThresholdConfigService.getCleanMax();
-        double frontierMax = riskThresholdConfigService.getFrontierMax();
+    private String classify(double dataSwampIndex, RiskThresholdConfigResponse config) {
+        double cleanMax = config.cleanMax();
+        double frontierMax = config.frontierMax();
 
         if (dataSwampIndex <= cleanMax) {
             return "DATA_LAKE_SALUDABLE";
@@ -612,15 +479,15 @@ public class DataLakeAuditService {
     ) {
         return switch (classification) {
             case "DATA_LAKE_SALUDABLE" ->
-                    "DSI-v1: " + dataSwampIndex + "%. El Data Lake activo se mantiene saludable. IRI: "
+                    "DSI: " + dataSwampIndex + "%. El Data Lake activo se mantiene saludable. IRI: "
                             + ingestionRisk
                             + "%.";
             case "ZONA_FRONTERA" ->
-                    "DSI-v1: " + dataSwampIndex + "%. El Data Lake presenta señales de degradación. IRI: "
+                    "DSI: " + dataSwampIndex + "%. El Data Lake presenta señales de degradación. IRI: "
                             + ingestionRisk
                             + "%.";
             case "DATA_SWAMP" ->
-                    "DSI-v1: " + dataSwampIndex + "%. El Data Lake presenta alto riesgo de Data Swamp. IRI: "
+                    "DSI: " + dataSwampIndex + "%. El Data Lake presenta alto riesgo de Data Swamp. IRI: "
                             + ingestionRisk
                             + "%.";
             default ->
@@ -631,11 +498,11 @@ public class DataLakeAuditService {
     private String buildRepositoryMessage(String classification, double dataSwampIndex) {
         return switch (classification) {
             case "DATA_LAKE_SALUDABLE" ->
-                    "El repositorio auditado se mantiene saludable. DSI-v1: " + dataSwampIndex + "%.";
+                    "El repositorio auditado se mantiene saludable. DSI: " + dataSwampIndex + "%.";
             case "ZONA_FRONTERA" ->
-                    "El repositorio auditado se encuentra en zona frontera. DSI-v1: " + dataSwampIndex + "%.";
+                    "El repositorio auditado se encuentra en zona frontera. DSI: " + dataSwampIndex + "%.";
             case "DATA_SWAMP" ->
-                    "El repositorio auditado presenta alto riesgo de Data Swamp. DSI-v1: " + dataSwampIndex + "%.";
+                    "El repositorio auditado presenta alto riesgo de Data Swamp. DSI: " + dataSwampIndex + "%.";
             default ->
                     "No se pudo determinar la clasificación del repositorio auditado.";
         };

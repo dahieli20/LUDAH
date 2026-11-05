@@ -37,6 +37,8 @@
                 class="queue-item"
                 [class.active]="selectedIndex === i"
                 (click)="selectStatusItem(i)"
+                tabindex="0" role="button" [attr.aria-pressed]="selectedIndex === i"
+                (keydown.enter)="selectStatusItem(i)" (keydown.space)="$event.preventDefault(); selectStatusItem(i)"
                 >
                 <div class="file-data">
                   <strong>{{ item.file.name }}</strong>
@@ -53,7 +55,7 @@
           </div>
         } @else {
           <div class="empty-state">
-            <div class="empty-icon">📂</div>
+            <div class="empty-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H6V3h1Z"/><path d="M14 3v5h4M9 12h6M9 16h4"/></svg></div>
             <h3>{{ emptyTitle }}</h3>
             <p>{{ emptyDescription }}</p>
           </div>
@@ -154,7 +156,7 @@
           }
         } @else {
           <div class="empty-state detail-empty">
-            <div class="empty-icon">📊</div>
+            <div class="empty-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H6V3h1Z"/><path d="M14 3v5h4M9 12h6M9 16h4"/></svg></div>
             <h3>Seleccioná un documento</h3>
             <p>Acá vas a poder ver el detalle del análisis del CSV.</p>
           </div>

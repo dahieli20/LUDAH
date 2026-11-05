@@ -3,6 +3,7 @@ package com.datalakefilter.controller;
 import com.datalakefilter.service.MinioService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
 
 @RestController
 public class MinioController {
@@ -11,6 +12,11 @@ public class MinioController {
 
     public MinioController(MinioService minioService) {
         this.minioService = minioService;
+    }
+
+    @GetMapping("/api/minio/prefixes")
+    public List<String> listPrefixes() {
+        return minioService.listPrefixes();
     }
 
     @GetMapping("/api/minio/test")

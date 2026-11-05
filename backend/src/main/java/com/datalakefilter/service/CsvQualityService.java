@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -13,10 +14,18 @@ import java.util.*;
 public class CsvQualityService {
 
     public CsvQualityResult analyze(MultipartFile file) {
+        try {
+            return analyze(file.getInputStream());
+        } catch (Exception e) {
+            throw new RuntimeException("Error al analizar calidad del CSV", e);
+        }
+    }
+
+    public CsvQualityResult analyze(InputStream inputStream) {
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)
+                new InputStreamReader(inputStream, StandardCharsets.UTF_8)
         )) {
-            String headerLine = reader.readLine();
+            String headerLine = CsvNormalization.header(reader.readLine());
 
             if (headerLine == null || headerLine.isBlank()) {
                 return new CsvQualityResult(0, 0, 100.0, 0.0, false, false);
@@ -42,7 +51,7 @@ public class CsvQualityService {
 
                 totalRows++;
 
-                String normalizedLine = line.trim().toLowerCase();
+                String normalizedLine = CsvNormalization.row(line);
 
                 if (!uniqueRows.add(normalizedLine)) {
                     duplicateRows++;
@@ -82,7 +91,7 @@ public class CsvQualityService {
         Set<String> seen = new HashSet<>();
 
         for (String value : values) {
-            String normalized = value.trim().toLowerCase();
+            String normalized = CsvNormalization.row(value);
 
             if (!seen.add(normalized)) {
                 return true;

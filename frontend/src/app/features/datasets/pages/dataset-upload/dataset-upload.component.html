@@ -2,12 +2,12 @@
   <header class="top-header">
     <div class="brand">
       <div>
-        <h1>Data Lake Filter</h1>
-        <p>Herramienta para analizar archivos CSV antes de ingresarlos al Data Lake.</p>
+        <h1>Ingestión de datos</h1>
+        <p>Analizá, revisá y organizá tus archivos antes de incorporarlos al Data Lake.</p>
       </div>
     </div>
 
-    <nav class="header-status-buttons" aria-label="Estados de datasets">
+    <nav class="header-status-buttons" aria-label="Acciones de ingestión">
       <button
         type="button"
         class="status-nav-button config"
@@ -22,52 +22,29 @@
         class="status-nav-button lake-status"
         (click)="goToDataLakeStatus()"
         >
-        <span class="status-icon">DSI</span>
-        <span class="status-label">Estado Data Lake</span>
+        <span class="status-label">Estado del Data Lake</span>
       </button>
 
-      <button
-        type="button"
-        class="status-nav-button accepted"
-        [class.active]="activeStatusView === 'ACCEPTED'"
-        (click)="goToStatusView('ACCEPTED')"
-        >
-        <span class="status-icon">✓</span>
-        <span class="status-label">Aceptados</span>
-        <span class="status-number">{{ acceptedCount }}</span>
-      </button>
-
-      <button
-        type="button"
-        class="status-nav-button review"
-        [class.active]="activeStatusView === 'REVIEW'"
-        (click)="goToStatusView('REVIEW')"
-        >
-        <span class="status-icon">◔</span>
-        <span class="status-label">En revisión</span>
-        <span class="status-number">{{ reviewCount }}</span>
-      </button>
-
-      <button
-        type="button"
-        class="status-nav-button rejected"
-        [class.active]="activeStatusView === 'REJECTED'"
-        (click)="goToStatusView('REJECTED')"
-        >
-        <span class="status-icon">✕</span>
-        <span class="status-label">Rechazados</span>
-        <span class="status-number">{{ rejectedCount }}</span>
-      </button>
     </nav>
 
   </header>
 
   <main class="dashboard">
+    <div class="page-intro">
+      <div><span class="step-label">01 / INGRESO</span><h2>Datos confiables desde el inicio.</h2><p>Prepará una carga y revisá los hallazgos de cada archivo.</p></div>
+      <span class="counter-pill">Resumen de esta sesión</span>
+    </div>
+    <section class="ingestion-summary" aria-label="Resumen de archivos de la sesión">
+      <div class="session-metric"><span>Archivos en la sesión</span><strong>{{ fileQueue.length }}</strong></div>
+      <div class="session-metric"><span>Aceptados</span><strong>{{ acceptedCount }}</strong></div>
+      <div class="session-metric"><span>En revisión</span><strong>{{ reviewCount }}</strong></div>
+      <div class="session-metric"><span>Rechazados</span><strong>{{ rejectedCount }}</strong></div>
+    </section>
     <section class="top-grid">
       <!-- SUBIR DATASETS -->
       <div class="card upload-card">
         <div class="card-title">
-          <h2>Subir datasets CSV</h2>
+          <span class="step-label">01</span><h2>Preparar archivos</h2>
         </div>
 
         <input
@@ -87,7 +64,8 @@
             (dragleave)="onDragLeave($event)"
             (drop)="onDrop($event)"
             >
-            <p>Arrastre o suelte uno o más archivos CSV aquí</p>
+            <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M15 35H12a8 8 0 0 1-1-16 13 13 0 0 1 25-1 9 9 0 0 1 0 18h-3M24 39V21m-6 6 6-6 6 6"/></svg>
+            <div><p>Arrastrá tus archivos CSV aquí</p><small>Uno o varios archivos · análisis de calidad y coincidencias</small></div>
             <button
               type="button"
               class="primary-button"
@@ -116,7 +94,7 @@
         <div class="card queue-card">
           <div class="section-header">
             <div>
-              <h2>Carpeta de espera</h2>
+              <h2>Cola de procesamiento</h2>
               <p>Seleccioná un archivo para ver el detalle del análisis.</p>
             </div>
 
@@ -132,6 +110,8 @@
                   class="queue-item"
                   [class.active]="selectedIndex === i"
                   (click)="selectFile(i)"
+                  tabindex="0" role="button" [attr.aria-pressed]="selectedIndex === i"
+                  (keydown.enter)="selectFile(i)" (keydown.space)="$event.preventDefault(); selectFile(i)"
                   >
                   <div class="file-data">
                     <strong>{{ item.file.name }}</strong>
@@ -146,6 +126,7 @@
                   <button
                     type="button"
                     class="icon-button"
+                    [attr.aria-label]="'Quitar ' + item.file.name"
                     (click)="removeFile(i); $event.stopPropagation()"
                     [disabled]="loading"
                     >
@@ -156,7 +137,7 @@
             </div>
           } @else {
             <div class="empty-state">
-              <div class="empty-icon">📁</div>
+              <div class="empty-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H6V3h1Z"/><path d="M14 3v5h4M9 12h6M9 16h4"/></svg></div>
               <h3>Todavía no hay archivos en espera</h3>
               <p>Agregá archivos para comenzar el análisis.</p>
             </div>
@@ -271,7 +252,7 @@
               }
             } @else {
               <div class="empty-state detail-empty">
-                <div class="empty-icon">📄</div>
+                <div class="empty-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H6V3h1Z"/><path d="M14 3v5h4M9 12h6M9 16h4"/></svg></div>
                 <h3>Sin resultados todavía</h3>
                 <p>Este archivo aún no fue analizado.</p>
               </div>
@@ -284,11 +265,10 @@
               </div>
             </div>
             <div class="empty-state detail-empty">
-              <div class="empty-icon">📊</div>
-              <h3>Seleccioná un archivo para ver el detalle del análisis.</h3>
+              <div class="empty-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H6V3h1Z"/><path d="M14 3v5h4M9 12h6M9 16h4"/></svg></div>
+              <h3>Sin archivo seleccionado</h3>
               <p>
-                Acá podrás revisar la calidad de los datos, estadísticas,
-                columnas, reglas y resultados del procesamiento.
+                Seleccioná un archivo de la cola para explorar su calidad, las coincidencias y la decisión de ingreso.
               </p>
             </div>
           }
@@ -305,15 +285,15 @@
     }
 
     @if (showThresholdModal && riskConfig) {
-      <div class="threshold-modal">
+      <div class="threshold-modal" role="dialog" aria-modal="true" aria-labelledby="threshold-title" (keydown.escape)="closeThresholdModal()">
         <div class="threshold-modal-header">
           <div>
-            <h2>Configurar escala DSI</h2>
+            <h2 id="threshold-title">Configurar escala DSI</h2>
             <p>Definí los rangos para clasificar el estado del Data Lake.</p>
           </div>
           <button
             type="button"
-            class="threshold-modal-close"
+            class="threshold-modal-close" aria-label="Cerrar configuración"
             (click)="closeThresholdModal()"
             >
             ✕
@@ -322,9 +302,9 @@
         <div class="threshold-modal-body">
           <div class="threshold-input-grid">
             <div class="threshold-input-group">
-              <label>Saludable hasta (%)</label>
+              <label for="clean-max">Saludable hasta (%)</label>
               <input
-                #cleanMaxInput
+                #cleanMaxInput id="clean-max"
                 type="number"
                 min="0"
                 max="99.99"
@@ -333,9 +313,9 @@
                 />
               </div>
               <div class="threshold-input-group">
-                <label>Frontera hasta (%)</label>
+                <label for="frontier-max">Frontera hasta (%)</label>
                 <input
-                  #frontierMaxInput
+                  #frontierMaxInput id="frontier-max"
                   type="number"
                   min="0"
                   max="100"

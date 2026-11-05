@@ -104,11 +104,11 @@ export class DatasetStatusComponent {
   get emptyDescription(): string {
     switch (this.status) {
       case 'ACCEPTED':
-        return 'Cuando un CSV quede con estado ACCEPTED, va a aparecer en esta pantalla.';
+        return 'Cuando un CSV quede con estado Aceptado, va a aparecer en esta pantalla.';
       case 'REVIEW':
-        return 'Cuando un CSV quede con estado REVIEW, va a aparecer en esta pantalla.';
+        return 'Cuando un CSV quede con estado En revisión, va a aparecer en esta pantalla.';
       case 'REJECTED':
-        return 'Cuando un CSV quede con estado REJECTED, va a aparecer en esta pantalla.';
+        return 'Cuando un CSV quede con estado Rechazado, va a aparecer en esta pantalla.';
       default:
         return '';
     }
