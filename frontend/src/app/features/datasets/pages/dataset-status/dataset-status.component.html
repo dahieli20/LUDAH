@@ -30,7 +30,17 @@
           </span>
         </div>
 
-        @if (statusItems.length > 0) {
+        @if (loading) {
+          <div class="empty-state">
+            <h3>Cargando documentos...</h3>
+            <p>Consultando el contenido actual de MinIO.</p>
+          </div>
+        } @else if (loadError) {
+          <div class="empty-state">
+            <h3>No se pudieron cargar los documentos</h3>
+            <p>{{ loadError }}</p>
+          </div>
+        } @else if (statusItems.length > 0) {
           <div class="queue-list">
             @for (item of statusItems; track item; let i = $index) {
               <div
@@ -42,7 +52,7 @@
                 >
                 <div class="file-data">
                   <strong>{{ item.file.name }}</strong>
-                  <span>{{ formatFileSize(item.file.size) }}</span>
+                  <span>{{ formatFileSize(getFileSize(item)) }}</span>
                 </div>
                 <span
                   class="status-pill"
@@ -69,7 +79,7 @@
             <div class="detail-file">
               <div>
                 <h2>{{ selectedItem?.file?.name }}</h2>
-                <p>{{ formatFileSize(selectedItem?.file?.size || 0) }}</p>
+                <p>{{ formatFileSize(getFileSize(selectedItem)) }}</p>
               </div>
             </div>
             <span
@@ -132,6 +142,10 @@
                   {{ selectedItem?.result?.quality?.hasDuplicateColumns ? 'Sí' : 'No' }}
                 </strong>
               </div>
+            </div>
+          } @else {
+            <div class="message-box">
+              <p>El archivo existe en MinIO, pero no tiene un análisis histórico guardado.</p>
             </div>
           }
           @if (selectedItem?.result?.status === 'REVIEW') {

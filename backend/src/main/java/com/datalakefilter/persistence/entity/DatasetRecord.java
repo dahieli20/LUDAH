@@ -88,6 +88,42 @@ public class DatasetRecord {
         return record;
     }
 
+    public UploadDatasetResponse toResponse(
+            String currentPath,
+            String currentStatus,
+            long size
+    ) {
+        CsvQualityResult quality = null;
+
+        if (totalRows != null
+                && totalColumns != null
+                && nullPercentage != null
+                && duplicateRowsPercentage != null
+                && hasDuplicateColumns != null
+                && hasDataRows != null) {
+            quality = new CsvQualityResult(
+                    totalRows,
+                    totalColumns,
+                    nullPercentage,
+                    duplicateRowsPercentage,
+                    hasDuplicateColumns,
+                    hasDataRows
+            );
+        }
+
+        return new UploadDatasetResponse(
+                fileName,
+                currentPath,
+                currentStatus,
+                message,
+                fileHash,
+                partialMatchPercentage,
+                matchedWith,
+                quality,
+                size
+        );
+    }
+
     @PrePersist
     void initializeCreatedAt() {
         if (createdAt == null) {

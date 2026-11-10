@@ -23,6 +23,9 @@ import java.util.TreeSet;
 @Service
 public class MinioService {
 
+    public record StoredObject(String path, long size) {
+    }
+
     private final MinioClient minioClient;
 
     @Value("${minio.bucket}")
@@ -64,8 +67,14 @@ public class MinioService {
     }
 
     public List<String> listFiles(String prefix) {
+        return listStoredObjects(prefix).stream()
+                .map(StoredObject::path)
+                .toList();
+    }
+
+    public List<StoredObject> listStoredObjects(String prefix) {
         try {
-            List<String> files = new ArrayList<>();
+            List<StoredObject> files = new ArrayList<>();
 
             Iterable<Result<Item>> results = minioClient.listObjects(
                     ListObjectsArgs.builder()
@@ -79,7 +88,7 @@ public class MinioService {
                 Item item = result.get();
 
                 if (!item.isDir()) {
-                    files.add(item.objectName());
+                    files.add(new StoredObject(item.objectName(), item.size()));
                 }
             }
 

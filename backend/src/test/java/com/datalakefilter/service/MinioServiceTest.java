@@ -21,6 +21,27 @@ class MinioServiceTest {
         return new Result<>(item);
     }
 
+    private Result<Item> item(String name, long size) {
+        Item item = mock(Item.class);
+        when(item.objectName()).thenReturn(name);
+        when(item.size()).thenReturn(size);
+        return new Result<>(item);
+    }
+
+    @Test void listsStoredObjectsWithTheirPathsAndSizes() {
+        ReflectionTestUtils.setField(service, "bucketName", "test");
+        List<Result<Item>> objects = List.of(
+                item("review/a.csv", 125L),
+                item("review/b.csv", 230L)
+        );
+        when(client.listObjects(any(ListObjectsArgs.class))).thenReturn(objects);
+
+        assertEquals(List.of(
+                new MinioService.StoredObject("review/a.csv", 125L),
+                new MinioService.StoredObject("review/b.csv", 230L)
+        ), service.listStoredObjects("review/"));
+    }
+
     @Test void listsUniqueSortedParentsNestedPathsAndDirectoryMarkersWithoutRoot() {
         ReflectionTestUtils.setField(service, "bucketName", "test");
         List<Result<Item>> objects = List.of(

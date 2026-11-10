@@ -5,6 +5,7 @@ export type StatusView = 'ACCEPTED' | 'REVIEW' | 'REJECTED';
 
 export interface FileQueueItem {
   file: File;
+  fileSize?: number;
   state: QueueState;
   result: UploadDatasetResponse | null;
   errorMessage: string;

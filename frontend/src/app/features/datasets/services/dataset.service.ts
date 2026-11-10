@@ -15,13 +15,14 @@ export interface CsvQualityResult {
 
 export interface UploadDatasetResponse {
   fileName: string;
-  path: string;
+  path: string | null;
   status: string;
   message: string;
-  fileHash: string;
-  partialMatchPercentage: number;
-  matchedWith: string;
-  quality: CsvQualityResult;
+  fileHash: string | null;
+  partialMatchPercentage: number | null;
+  matchedWith: string | null;
+  quality: CsvQualityResult | null;
+  size: number | null;
 }
 
 export interface AuditFactorResponse {
@@ -78,6 +79,12 @@ export class DatasetService {
     return this.http.post<UploadDatasetResponse>(
       `${this.apiUrl}/review/reject`,
       dataset
+    );
+  }
+
+  getDatasetsByStatus(status: string): Observable<UploadDatasetResponse[]> {
+    return this.http.get<UploadDatasetResponse[]>(
+      `${this.apiUrl}/status/${status}`
     );
   }
 

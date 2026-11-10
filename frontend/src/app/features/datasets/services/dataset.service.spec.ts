@@ -31,4 +31,11 @@ describe('DatasetService audit requests', () => {
     service.getRepositoryPrefixes().subscribe();
     expect(http.get).toHaveBeenCalledOnceWith(`${environment.apiUrl}/minio/prefixes`);
   });
+
+  it('queries persisted datasets by their current status', () => {
+    service.getDatasetsByStatus('REVIEW').subscribe();
+    expect(http.get).toHaveBeenCalledOnceWith(
+      `${environment.apiUrl}/datasets/status/REVIEW`
+    );
+  });
 });

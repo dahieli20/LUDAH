@@ -3,6 +3,7 @@ package com.datalakefilter.service;
 import com.datalakefilter.dto.CsvQualityResult;
 import com.datalakefilter.dto.DatasetDecisionRequest;
 import com.datalakefilter.dto.UploadDatasetResponse;
+import com.datalakefilter.persistence.entity.DatasetRecord;
 import com.datalakefilter.persistence.repository.DatasetRecordRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,9 +16,11 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -145,6 +148,76 @@ class DatasetServiceTest {
         assertThrows(
                 ResponseStatusException.class,
                 () -> datasetService.approveDataset(request)
+        );
+    }
+
+    @Test
+    void listsCurrentReviewFilesFromMinioWithTheirPersistedAnalysis() {
+        CsvQualityResult quality = new CsvQualityResult(
+                12,
+                4,
+                45.0,
+                0.0,
+                false,
+                true
+        );
+        UploadDatasetResponse persistedResponse = new UploadDatasetResponse(
+                "alumnos.csv",
+                "review/alumnos.csv",
+                "REVIEW",
+                "El CSV contiene un porcentaje alto de valores nulos.",
+                "abc123",
+                70.0,
+                "raw/base.csv",
+                quality
+        );
+        DatasetRecord record = DatasetRecord.from(persistedResponse);
+
+        when(minioService.listStoredObjects("review/")).thenReturn(List.of(
+                new MinioService.StoredObject("review/alumnos.csv", 512L)
+        ));
+        when(datasetRecordRepository.findFirstByObjectPathOrderByCreatedAtDescIdDesc(
+                "review/alumnos.csv"
+        )).thenReturn(Optional.of(record));
+
+        List<UploadDatasetResponse> responses = datasetService.findByStatus("review");
+
+        assertEquals(1, responses.size());
+        UploadDatasetResponse response = responses.get(0);
+        assertEquals("REVIEW", response.status());
+        assertEquals("review/alumnos.csv", response.path());
+        assertEquals(512L, response.size());
+        assertEquals(quality, response.quality());
+        assertEquals(persistedResponse.message(), response.message());
+    }
+
+    @Test
+    void listsLegacyMinioFilesEvenWithoutDatabaseHistory() {
+        when(minioService.listStoredObjects("raw/")).thenReturn(List.of(
+                new MinioService.StoredObject("raw/legado.csv", 2048L),
+                new MinioService.StoredObject("raw/nota.txt", 20L)
+        ));
+        when(datasetRecordRepository.findFirstByObjectPathOrderByCreatedAtDescIdDesc(
+                "raw/legado.csv"
+        )).thenReturn(Optional.empty());
+
+        List<UploadDatasetResponse> responses = datasetService.findByStatus("ACCEPTED");
+
+        assertEquals(1, responses.size());
+        UploadDatasetResponse response = responses.get(0);
+        assertEquals("legado.csv", response.fileName());
+        assertEquals("raw/legado.csv", response.path());
+        assertEquals("ACCEPTED", response.status());
+        assertEquals(2048L, response.size());
+        assertNull(response.quality());
+        assertEquals("Archivo existente en MinIO. Guardado en raw/.", response.message());
+    }
+
+    @Test
+    void rejectsUnknownStatusQueries() {
+        assertThrows(
+                ResponseStatusException.class,
+                () -> datasetService.findByStatus("UNKNOWN")
         );
     }
 }

@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 
-import { DatasetService } from '../../services/dataset.service';
+import { DatasetService, UploadDatasetResponse } from '../../services/dataset.service';
 import { DatasetStateService } from '../../services/dataset-state.service';
 import { FileQueueItem, StatusView } from '../../../../models/dataset-queue.model';
 
@@ -18,8 +18,11 @@ export class DatasetStatusComponent {
   fileQueue: FileQueueItem[] = [];
   statusItems: FileQueueItem[] = [];
   selectedIndex: number | null = null;
+  loading = false;
+  loadError = '';
 
   private subscriptions = new Subscription();
+  private statusRequestSubscription: Subscription | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -38,16 +41,10 @@ export class DatasetStatusComponent {
       }
 
       this.status = statusParam;
-      this.filterItemsByStatus();
-    });
-
-    const queueSubscription = this.datasetStateService.fileQueue$.subscribe(queue => {
-      this.fileQueue = queue;
-      this.filterItemsByStatus();
+      this.loadStatusItems();
     });
 
     this.subscriptions.add(routeSubscription);
-    this.subscriptions.add(queueSubscription);
   }
 
   ngOnDestroy(): void {
@@ -118,10 +115,56 @@ export class DatasetStatusComponent {
     return status === 'ACCEPTED' || status === 'REVIEW' || status === 'REJECTED';
   }
 
-  private filterItemsByStatus(): void {
-    this.statusItems = this.fileQueue.filter(
-      item => item.result?.status === this.status
-    );
+  private loadStatusItems(): void {
+    this.statusRequestSubscription?.unsubscribe();
+    this.loading = true;
+    this.loadError = '';
+    this.fileQueue = [];
+    this.statusItems = [];
+    this.selectedIndex = null;
+
+    this.statusRequestSubscription = this.datasetService
+      .getDatasetsByStatus(this.status)
+      .subscribe({
+        next: datasets => {
+          this.fileQueue = datasets.map(dataset => this.toQueueItem(dataset));
+          this.statusItems = this.fileQueue;
+          this.loading = false;
+          this.selectFirstAvailableItem();
+        },
+        error: () => {
+          this.fileQueue = [];
+          this.statusItems = [];
+          this.selectedIndex = null;
+          this.loading = false;
+          this.loadError = 'No se pudieron recuperar los documentos almacenados.';
+        }
+      });
+
+    this.subscriptions.add(this.statusRequestSubscription);
+  }
+
+  private toQueueItem(result: UploadDatasetResponse): FileQueueItem {
+    const fileName = result.fileName || this.extractFileName(result.path);
+
+    return {
+      file: new File([], fileName, { type: 'text/csv' }),
+      fileSize: result.size ?? 0,
+      state: 'DONE',
+      result,
+      errorMessage: ''
+    };
+  }
+
+  private extractFileName(path: string | null): string {
+    if (!path) {
+      return 'archivo.csv';
+    }
+
+    return path.split('/').pop() || 'archivo.csv';
+  }
+
+  private selectFirstAvailableItem(): void {
 
     if (this.statusItems.length === 0) {
       this.selectedIndex = null;
@@ -179,10 +222,12 @@ export class DatasetStatusComponent {
     }
 
     this.datasetService.approveDataset(item.result).subscribe({
-      next: result => this.datasetStateService.updateItemStatus(item, result),
+      next: result => {
+        this.datasetStateService.updateItemStatus(item, result);
+        this.loadStatusItems();
+      },
       error: () => {
         item.errorMessage = 'No se pudo aprobar el documento en el backend.';
-        this.datasetStateService.setFileQueue(this.fileQueue);
       }
     });
   }
@@ -195,10 +240,12 @@ export class DatasetStatusComponent {
     }
 
     this.datasetService.rejectDataset(item.result).subscribe({
-      next: result => this.datasetStateService.updateItemStatus(item, result),
+      next: result => {
+        this.datasetStateService.updateItemStatus(item, result);
+        this.loadStatusItems();
+      },
       error: () => {
         item.errorMessage = 'No se pudo rechazar el documento en el backend.';
-        this.datasetStateService.setFileQueue(this.fileQueue);
       }
     });
   }
@@ -213,5 +260,9 @@ export class DatasetStatusComponent {
     }
 
     return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  getFileSize(item: FileQueueItem | null): number {
+    return item?.fileSize ?? item?.file.size ?? 0;
   }
 }

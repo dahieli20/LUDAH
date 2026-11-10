@@ -10,8 +10,10 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -241,6 +243,25 @@ public class DatasetService {
         );
     }
 
+    public List<UploadDatasetResponse> findByStatus(String requestedStatus) {
+        String status = normalizeStatus(requestedStatus);
+        String prefix = switch (status) {
+            case "ACCEPTED" -> "raw/";
+            case "REVIEW" -> "review/";
+            case "REJECTED" -> "rejected/";
+            default -> throw new IllegalStateException("Estado no soportado: " + status);
+        };
+
+        return minioService.listStoredObjects(prefix).stream()
+                .filter(object -> object.path().toLowerCase(Locale.ROOT).endsWith(".csv"))
+                .map(object -> toCurrentResponse(object, status))
+                .sorted(Comparator.comparing(
+                        UploadDatasetResponse::fileName,
+                        String.CASE_INSENSITIVE_ORDER
+                ))
+                .toList();
+    }
+
     private double calculateMatchPercentage(
             Set<String> newRows,
             Set<String> existingRows
@@ -338,6 +359,51 @@ public class DatasetService {
     private UploadDatasetResponse persist(UploadDatasetResponse response) {
         datasetRecordRepository.save(DatasetRecord.from(response));
         return response;
+    }
+
+    private UploadDatasetResponse toCurrentResponse(
+            MinioService.StoredObject object,
+            String status
+    ) {
+        return datasetRecordRepository
+                .findFirstByObjectPathOrderByCreatedAtDescIdDesc(object.path())
+                .map(record -> record.toResponse(object.path(), status, object.size()))
+                .orElseGet(() -> new UploadDatasetResponse(
+                        extractFileName(object.path()),
+                        object.path(),
+                        status,
+                        defaultMessage(status),
+                        null,
+                        null,
+                        null,
+                        null,
+                        object.size()
+                ));
+    }
+
+    private String normalizeStatus(String requestedStatus) {
+        if (requestedStatus == null || requestedStatus.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "El estado es obligatorio.");
+        }
+
+        String status = requestedStatus.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("ACCEPTED", "REVIEW", "REJECTED").contains(status)) {
+            throw new ResponseStatusException(
+                    BAD_REQUEST,
+                    "El estado debe ser ACCEPTED, REVIEW o REJECTED."
+            );
+        }
+
+        return status;
+    }
+
+    private String defaultMessage(String status) {
+        return switch (status) {
+            case "ACCEPTED" -> "Archivo existente en MinIO. Guardado en raw/.";
+            case "REVIEW" -> "Archivo existente en MinIO pendiente de revisión manual.";
+            case "REJECTED" -> "Archivo existente en MinIO. Guardado en rejected/.";
+            default -> "Archivo existente en MinIO.";
+        };
     }
 
     private String validateReviewPath(String path) {

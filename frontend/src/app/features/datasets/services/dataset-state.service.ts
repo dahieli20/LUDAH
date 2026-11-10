@@ -24,7 +24,10 @@ export class DatasetStateService {
     result: FileQueueItem['result']
   ): void {
     const updatedQueue = this.fileQueueSubject.value.map(item => {
-      if (item !== targetItem || !result) {
+      const sameItem = item === targetItem
+        || (!!item.result?.path && item.result.path === targetItem.result?.path);
+
+      if (!sameItem || !result) {
         return item;
       }
 
